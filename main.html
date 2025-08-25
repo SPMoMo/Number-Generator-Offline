@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Générateur de nombres — Hors ligne</title>
+<style>
+/* ==========================================================================
+   Styles de base (palette claire/sombre, typo, layout, cartes)
+   ========================================================================== */
+:root{
+  --bg: #f6f7fb;
+  --fg: #121212;
+  --muted: #666;
+  --card: #ffffff;
+  --accent: #2563eb;
+  --accent-2: #1e40af;
+  --border: #e5e7eb;
+  --shadow: 0 8px 24px rgba(0,0,0,.08);
+  --focus: 0 0 0 3px rgba(37,99,235,.35);
+  --error: #b91c1c;
+  --ok: #0f766e;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg: #0f1218;
+    --fg: #f3f4f6;
+    --muted: #9aa3b2;
+    --card: #151a22;
+    --accent: #60a5fa;
+    --accent-2: #3b82f6;
+    --border: #262b35;
+    --shadow: 0 8px 28px rgba(0,0,0,.45);
+    --focus: 0 0 0 3px rgba(96,165,250,.35);
+    --error: #f87171;
+    --ok: #34d399;
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font: 16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.container{
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+.header{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin-bottom:16px;
+}
+h1{
+  margin:0;
+  font-size: clamp(20px, 4vw, 28px);
+  letter-spacing:.2px;
+}
+.badge{
+  font-size:12px;border:1px solid var(--border);
+  padding:4px 8px;border-radius:999px;color:var(--muted);background:transparent;
+}
+.card{
+  background:var(--card); border:1px solid var(--border); border-radius:14px;
+  box-shadow: var(--shadow);
+  padding:16px;
+}
+.grid{
+  display:grid; gap:12px;
+}
+@media (min-width: 900px){
+  .layout{display:grid; grid-template-columns: 1.1fr .9fr; gap:16px; align-items:start;}
+}
+.control{
+  display:flex; flex-direction:column; gap:6px;
+}
+label{font-weight:600}
+.input, select, textarea{
+  background:transparent; color:var(--fg);
+  border:1px solid var(--border);
+  padding:10px 12px; border-radius:10px; outline:none;
+  transition: border-color .15s ease, box-shadow .15s ease, background-color .2s ease;
+}
+.input:focus, select:focus, textarea:focus, .radio:focus-visible, .checkbox:focus-visible{
+  box-shadow: var(--focus);
+  border-color: var(--accent);
+}
+fieldset{
+  border:1px dashed var(--border); border-radius:12px; padding:10px 12px;
+}
+legend{padding:0 6px; color:var(--muted)}
+.inline{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+.small{font-size:12px; color:var(--muted)}
+.error{color:var(--error); font-size:12px; min-height:1.1em}
+.success{color:var(--ok); font-size:12px}
+.btns{display:flex; gap:8px; flex-wrap:wrap}
+button{
+  appearance:none; border:none; cursor:pointer; border-radius:10px; padding:10px 14px; font-weight:600;
+  background: var(--accent); color:white; transition: transform .05s ease, background .15s ease, box-shadow .15s ease;
+}
+button.secondary{background:transparent; color:var(--fg); border:1px solid var(--border)}
+button.ghost{background:transparent; color:var(--accent); border:1px dashed var(--accent)}
+button:active{transform: translateY(1px) scale(0.995)}
+button:hover{background:var(--accent-2)}
+button.secondary:hover{border-color:var(--accent); color:var(--accent)}
+button[disabled]{opacity:.6; cursor:not-allowed}
+hr{border:none; border-top:1px solid var(--border); margin:8px 0}
+.result-wrap{display:flex; flex-direction:column; gap:8px}
+#result{
+  width:100%; min-height:260px; resize:vertical;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+}
+.counter{font-size:13px; color:var(--muted)}
+.kbd{
+  display:inline-block; padding:2px 6px; border:1px solid var(--border); border-radius:6px; background:transparent; font-family:inherit; font-size:12px; color:var(--muted)
+}
+.row{
+  display:grid; gap:12px;
+}
+@media (min-width: 700px){
+  .row.cols-2{grid-template-columns: 1fr 1fr}
+  .row.cols-3{grid-template-columns: 1fr 1fr 1fr}
+  .row.cols-fit{grid-template-columns: repeat(auto-fit, minmax(180px, 1fr))}
+}
+.sep-custom{display:flex; gap:8px; align-items:center}
+.help{font-size:12px; color:var(--muted)}
+.hide{display:none !important}
+svg{width:18px;height:18px; vertical-align:-3px}
+.footer-note{margin-top:8px; font-size:12px; color:var(--muted)}
+.header-right{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.lang-select{min-width: 130px}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1 id="h1Title" data-i18n="h1">Générateur de nombres</h1>
+      <div class="header-right">
+        <span class="badge" id="offlineBadge" data-i18n="badge_offline">100% hors‑ligne</span>
+        <label for="langSelect" class="small inline" style="gap:6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"></path>
+          </svg>
+          <span data-i18n="lang_label">Langue</span>
+        </label>
+        <select id="langSelect" class="input lang-select" data-i18n-aria-label="help_badge_label" aria-label="Changer la langue">
+          <option value="auto" id="optLangAuto" data-i18n="lang_auto">Auto</option>
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="layout">
+      <!-- Carte: Formulaire -->
+      <section class="card" aria-labelledby="formTitle">
+        <h2 id="formTitle" class="small" style="margin:0 0 8px 0" data-i18n="section_params">Paramètres</h2>
+        <form id="genForm" novalidate>
+          <div class="grid">
+            <div class="row cols-3">
+              <div class="control">
+                <label for="x" data-i18n="label_x">De (x)</label>
+                <input id="x" name="x" type="number" step="any" class="input" inputmode="decimal" placeholder="ex: 1" required aria-describedby="xErr">
+                <div id="xErr" class="error" aria-live="polite"></div>
+              </div>
+              <div class="control">
+                <label for="y" data-i18n="label_y">À (y)</label>
+                <input id="y" name="y" type="number" step="any" class="input" inputmode="decimal" placeholder="ex: 10" required aria-describedby="yErr">
+                <div id="yErr" class="error" aria-live="polite"></div>
+              </div>
+              <div class="control">
+                <label for="step" data-i18n="label_step">Pas (step)</label>
+                <input id="step" name="step" type="number" step="any" min="0" class="input" inputmode="decimal" placeholder="ex: 1" required aria-describedby="stepErr">
+                <div id="stepErr" class="error" aria-live="polite"></div>
+              </div>
+            </div>
+
+            <div class="row cols-2">
+              <fieldset class="control">
+                <legend data-i18n="order_legend">Ordre</legend>
+                <div class="inline" role="radiogroup" data-i18n-aria-label="order_legend" aria-label="Ordre">
+                  <label class="inline"><input class="radio" type="radio" name="order" value="asc" checked> <span data-i18n="order_asc">Croissant</span></label>
+                  <label class="inline"><input class="radio" type="radio" name="order" value="desc"> <span data-i18n="order_desc">Décroissant</span></label>
+                </div>
+              </fieldset>
+
+              <fieldset class="control">
+                <legend data-i18n="include_legend">Inclure les bornes</legend>
+                <div class="inline">
+                  <label class="inline"><input class="checkbox" type="checkbox" id="incX" checked> <span data-i18n="include_x">Inclure x</span></label>
+                  <label class="inline"><input class="checkbox" type="checkbox" id="incY" checked> <span data-i18n="include_y">Inclure y</span></label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div class="row cols-2">
+              <div class="control">
+                <label for="parity" data-i18n="parity_label">Parité</label>
+                <select id="parity" class="input" aria-describedby="parityHelp">
+                  <option value="all" data-i18n="parity_all">Tous</option>
+                  <option value="even" data-i18n="parity_even">Pairs</option>
+                  <option value="odd" data-i18n="parity_odd">Impairs</option>
+                </select>
+                <div id="parityHelp" class="help" data-i18n="parity_help">Désactivé automatiquement si des décimaux sont utilisés.</div>
+              </div>
+
+              <div class="control">
+                <label for="groupN" data-i18n="grouping_label">Regroupement — N valeurs/ligne</label>
+                <input id="groupN" type="number" class="input" min="0" step="1" placeholder="0 = pas de regroupement">
+                <div class="help" data-i18n="grouping_help">0 ou vide = pas de regroupement.</div>
+              </div>
+            </div>
+
+            <fieldset class="control">
+              <legend data-i18n="format_legend">Format de sortie</legend>
+              <div class="inline" role="radiogroup" data-i18n-aria-label="sep_legend_aria" aria-label="Séparateur">
+                <label><input type="radio" name="sep" value="comma" checked> <span data-i18n="sep_comma">Virgule (,)</span></label>
+                <label><input type="radio" name="sep" value="space"> <span data-i18n="sep_space">Espace</span></label>
+                <label><input type="radio" name="sep" value="semicolon"> <span data-i18n="sep_semicolon">Point‑virgule (;)</span></label>
+                <label><input type="radio" name="sep" value="newline"> <span data-i18n="sep_newline">Retour à la ligne</span></label>
+                <label class="sep-custom">
+                  <input type="radio" name="sep" value="custom" id="sepCustomRadio">
+                  <span data-i18n="sep_custom">Personnalisé</span>
+                  <input id="sepCustom" class="input" type="text" data-i18n-placeholder="sep_custom_placeholder" placeholder="ex: | ou \t ou \n" aria-label="Séparateur personnalisé" disabled style="width:140px">
+                </label>
+              </div>
+              <div class="help" data-i18n="sep_help">Les échappements \n (ligne), \t (tab), \r sont acceptés.</div>
+            </fieldset>
+
+            <div class="row cols-fit">
+              <div class="control">
+                <label for="prefix" data-i18n="prefix_label">Préfixe (par nombre)</label>
+                <input id="prefix" class="input" type="text" data-i18n-placeholder="prefix_ph" placeholder="ex: N=">
+              </div>
+              <div class="control">
+                <label for="suffix" data-i18n="suffix_label">Suffixe (par nombre)</label>
+                <input id="suffix" class="input" type="text" data-i18n-placeholder="suffix_ph" placeholder="ex: ;">
+              </div>
+              <div class="control">
+                <label for="pad" data-i18n="pad_label">Padding (longueur min)</label>
+                <input id="pad" class="input" type="number" min="0" step="1" data-i18n-placeholder="pad_ph" placeholder="ex: 4 → 0037">
+              </div>
+            </div>
+
+            <div class="btns" style="margin-top:6px">
+              <button type="submit" id="btnGen" data-i18n-title="btn_generate_title" title="Entrée = Générer">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 12h14"></path><path d="M12 5l7 7-7 7"></path>
+                </svg> <span data-i18n="btn_generate">Générer</span>
+              </button>
+              <button type="button" id="btnReset" class="secondary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 12a9 9 0 1 0 9-9"></path><path d="M3 3v6h6"></path>
+                </svg> <span data-i18n="btn_reset">Réinitialiser</span>
+              </button>
+              <span class="help"><span data-i18n="tip_enter">Astuce: appuyez sur</span> <span class="kbd" id="enterKey" data-i18n="hint_enter_key">Entrée</span> <span data-i18n="tip_enter_tail">pour générer.</span></span>
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <!-- Carte: Résultat -->
+      <section class="card" aria-labelledby="resTitle">
+        <h2 id="resTitle" class="small" style="margin:0 0 8px 0" data-i18n="section_result">Résultat</h2>
+        <div class="result-wrap">
+          <div class="inline" style="justify-content:space-between">
+            <div class="counter" id="countLabel" aria-live="polite">0 élément</div>
+            <div class="inline" style="gap:6px">
+              <button type="button" id="btnCopy" class="ghost" disabled data-i18n-title="btn_copy_title" title="Copier le résultat">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                  <path d="M5 15V5a2 2 0 0 1 2-2h10"></path>
+                </svg> <span data-i18n="btn_copy">Copier</span>
+              </button>
+              <span id="copyMsg" class="success" role="status" aria-live="polite"></span>
+            </div>
+          </div>
+          <textarea id="result" class="input" readonly data-i18n-placeholder="result_placeholder" placeholder="Les valeurs générées apparaîtront ici…"></textarea>
+          <div class="footer-note" data-i18n="footer_note">Compatibilité: Chrome, Edge, Firefox (récents). Aucune librairie externe.</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+<script>
+/* ==========================================================================
+   Générateur de nombres — JS pur (tout en français) + Internationalisation (FR/EN)
+   - Validation, gestion décimaux (arrondi contrôlé), formatage, copie, UX, i18n
+   ========================================================================== */
+(function(){
+  'use strict';
+
+  /* ------------------------------------------------------------------------
+     Internationalisation (i18n) — FR/EN, avec "Auto" (langue navigateur)
+     ------------------------------------------------------------------------ */
+  const I18N = {
+    fr: {
+      app_title: 'Générateur de nombres — Hors ligne',
+      h1: 'Générateur de nombres',
+      badge_offline: '100% hors‑ligne',
+      lang_label: 'Langue',
+      lang_auto: 'Auto',
+      help_badge_label: 'Changer la langue',
+      section_params: 'Paramètres',
+      label_x: 'De (x)',
+      label_y: 'À (y)',
+      label_step: 'Pas (step)',
+      order_legend: 'Ordre',
+      order_asc: 'Croissant',
+      order_desc: 'Décroissant',
+      include_legend: 'Inclure les bornes',
+      include_x: 'Inclure x',
+      include_y: 'Inclure y',
+      parity_label: 'Parité',
+      parity_all: 'Tous',
+      parity_even: 'Pairs',
+      parity_odd: 'Impairs',
+      parity_help: 'Désactivé automatiquement si des décimaux sont utilisés.',
+      grouping_label: 'Regroupement — N valeurs/ligne',
+      grouping_help: '0 ou vide = pas de regroupement.',
+      format_legend: 'Format de sortie',
+      sep_legend_aria: 'Séparateur',
+      sep_comma: 'Virgule (,)',
+      sep_space: 'Espace',
+      sep_semicolon: 'Point‑virgule (;)',
+      sep_newline: 'Retour à la ligne',
+      sep_custom: 'Personnalisé',
+      sep_custom_placeholder: 'ex: | ou \\t ou \\n',
+      sep_help: 'Les échappements \\n (ligne), \\t (tab), \\r sont acceptés.',
+      prefix_label: 'Préfixe (par nombre)',
+      prefix_ph: 'ex: N=',
+      suffix_label: 'Suffixe (par nombre)',
+      suffix_ph: 'ex: ;',
+      pad_label: 'Padding (longueur min)',
+      pad_ph: 'ex: 4 → 0037',
+      btn_generate: 'Générer',
+      btn_generate_title: 'Entrée = Générer',
+      btn_reset: 'Réinitialiser',
+      tip_enter: 'Astuce: appuyez sur',
+      hint_enter_key: 'Entrée',
+      tip_enter_tail: 'pour générer.',
+      section_result: 'Résultat',
+      count_one: 'élément',
+      count_many: 'éléments',
+      btn_copy: 'Copier',
+      btn_copy_title: 'Copier le résultat',
+      result_placeholder: 'Les valeurs générées apparaîtront ici…',
+      footer_note: 'Compatibilité: Chrome, Edge, Firefox (récents). Aucune librairie externe.',
+      err_x: 'Veuillez saisir un nombre valide pour x.',
+      err_y: 'Veuillez saisir un nombre valide pour y.',
+      err_step: 'Veuillez saisir un pas valide.',
+      err_step_positive: 'Le pas doit être strictement positif.',
+      warn_big: (approx, locale) => `Vous êtes sur le point de générer environ ${approx.toLocaleString(locale)} éléments.\nCela peut être long et consommer de la mémoire.\n\nContinuer ?`,
+      safety_stop: 'Arrêt de sécurité (trop d’éléments).',
+      copied_ok: 'Copié ✔',
+      copy_fail: 'Impossible de copier automatiquement.'
+    },
+    en: {
+      app_title: 'Number Generator — Offline',
+      h1: 'Number Generator',
+      badge_offline: '100% offline',
+      lang_label: 'Language',
+      lang_auto: 'Auto',
+      help_badge_label: 'Change language',
+      section_params: 'Settings',
+      label_x: 'From (x)',
+      label_y: 'To (y)',
+      label_step: 'Step',
+      order_legend: 'Order',
+      order_asc: 'Ascending',
+      order_desc: 'Descending',
+      include_legend: 'Include bounds',
+      include_x: 'Include x',
+      include_y: 'Include y',
+      parity_label: 'Parity',
+      parity_all: 'All',
+      parity_even: 'Even',
+      parity_odd: 'Odd',
+      parity_help: 'Automatically disabled when decimals are used.',
+      grouping_label: 'Grouping — N values/line',
+      grouping_help: '0 or empty = no grouping.',
+      format_legend: 'Output format',
+      sep_legend_aria: 'Separator',
+      sep_comma: 'Comma (,)',
+      sep_space: 'Space',
+      sep_semicolon: 'Semicolon (;)',
+      sep_newline: 'New line',
+      sep_custom: 'Custom',
+      sep_custom_placeholder: 'e.g., | or \\t or \\n',
+      sep_help: 'Escapes \\n (newline), \\t (tab), \\r are supported.',
+      prefix_label: 'Prefix (per number)',
+      prefix_ph: 'e.g., N=',
+      suffix_label: 'Suffix (per number)',
+      suffix_ph: 'e.g., ;',
+      pad_label: 'Padding (min length)',
+      pad_ph: 'e.g., 4 → 0037',
+      btn_generate: 'Generate',
+      btn_generate_title: 'Enter = Generate',
+      btn_reset: 'Reset',
+      tip_enter: 'Tip: press',
+      hint_enter_key: 'Enter',
+      tip_enter_tail: 'to generate.',
+      section_result: 'Result',
+      count_one: 'item',
+      count_many: 'items',
+      btn_copy: 'Copy',
+      btn_copy_title: 'Copy result',
+      result_placeholder: 'Generated values will appear here…',
+      footer_note: 'Compatibility: Chrome, Edge, Firefox (recent). No external libraries.',
+      err_x: 'Please enter a valid number for x.',
+      err_y: 'Please enter a valid number for y.',
+      err_step: 'Please enter a valid step.',
+      err_step_positive: 'Step must be strictly positive.',
+      warn_big: (approx, locale) => `You are about to generate roughly ${approx.toLocaleString(locale)} items.\nThis may take time and use memory.\n\nProceed?`,
+      safety_stop: 'Safety stop (too many items).',
+      copied_ok: 'Copied ✔',
+      copy_fail: 'Unable to copy automatically.'
+    }
+  };
+  const SUPPORTED_LANGS = ['fr','en'];
+
+  // État langue
+  let prefLang = localStorage.getItem('prefLang') || 'auto'; // 'auto' | 'fr' | 'en'
+  function resolveLang(pref){
+    if (pref === 'auto'){
+      const list = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'fr']).map(x => String(x || '').toLowerCase().split('-')[0]);
+      for (const l of list){ if (SUPPORTED_LANGS.includes(l)) return l; }
+      return 'fr';
+    }
+    const b = String(pref).toLowerCase();
+    return SUPPORTED_LANGS.includes(b) ? b : 'fr';
+  }
+  let currentLang = resolveLang(prefLang);
+  let lastCount = 0;
+
+  function applyI18N(){
+    const t = I18N[currentLang];
+    // Attribut lang + titre
+    document.documentElement.lang = currentLang;
+    document.title = t.app_title;
+
+    // Textes simples
+    document.querySelectorAll('[data-i18n]').forEach(el=>{
+      const key = el.getAttribute('data-i18n');
+      if (t[key] != null && typeof t[key] === 'string'){ el.textContent = t[key]; }
+    });
+    // Placeholder
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{
+      const key = el.getAttribute('data-i18n-placeholder');
+      if (t[key] != null && typeof t[key] === 'string'){ el.setAttribute('placeholder', t[key]); }
+    });
+    // Title
+    document.querySelectorAll('[data-i18n-title]').forEach(el=>{
+      const key = el.getAttribute('data-i18n-title');
+      if (t[key] != null && typeof t[key] === 'string'){ el.setAttribute('title', t[key]); }
+    });
+    // ARIA label
+    document.querySelectorAll('[data-i18n-aria-label]').forEach(el=>{
+      const key = el.getAttribute('data-i18n-aria-label');
+      if (t[key] != null && typeof t[key] === 'string'){ el.setAttribute('aria-label', t[key]); }
+    });
+
+    // Option "Auto" dans le sélecteur de langue
+    const optAuto = document.getElementById('optLangAuto');
+    if (optAuto) optAuto.textContent = t.lang_auto;
+
+    // Mettre à jour le compteur avec la langue courante
+    updateCount(lastCount);
+  }
+
+  /* ------------------------------------------------------------------------
+     Sélecteurs UI
+     ------------------------------------------------------------------------ */
+  const form = document.getElementById('genForm');
+  const xEl = document.getElementById('x');
+  const yEl = document.getElementById('y');
+  const stepEl = document.getElementById('step');
+  const parityEl = document.getElementById('parity');
+  const incXEl = document.getElementById('incX');
+  const incYEl = document.getElementById('incY');
+  const groupNEl = document.getElementById('groupN');
+  const sepCustomRadio = document.getElementById('sepCustomRadio');
+  const sepCustomEl = document.getElementById('sepCustom');
+  const prefixEl = document.getElementById('prefix');
+  const suffixEl = document.getElementById('suffix');
+  const padEl = document.getElementById('pad');
+
+  const btnGen = document.getElementById('btnGen');
+  const btnReset = document.getElementById('btnReset');
+  const btnCopy = document.getElementById('btnCopy');
+  const resultEl = document.getElementById('result');
+  const countLabel = document.getElementById('countLabel');
+  const copyMsg = document.getElementById('copyMsg');
+  const langSelect = document.getElementById('langSelect');
+
+  // Messages d'erreur (sous les champs)
+  const xErr = document.getElementById('xErr');
+  const yErr = document.getElementById('yErr');
+  const stepErr = document.getElementById('stepErr');
+
+  // Constantes
+  const BIG_THRESHOLD = 100000; // Avertissement si > 100k éléments
+
+  /* ------------------------------------------------------------------------
+     Utilitaires: décimales, parsing, sécurité des comparaisons
+     ------------------------------------------------------------------------ */
+  function decimalsCount(str){
+    if (str == null) return 0;
+    const s = String(str).trim().replace(',', '.');
+    if (!s) return 0;
+    if (/e/i.test(s)) {
+      const n = Number(s);
+      if (!isFinite(n)) return 0;
+      const parts = n.toString().split('.');
+      return parts[1] ? parts[1].length : 0;
+    }
+    const parts = s.split('.');
+    return parts[1] ? parts[1].length : 0;
+  }
+
+  function commonScale(xs){
+    let dmax = 0;
+    for (const v of xs) dmax = Math.max(dmax, decimalsCount(v));
+    dmax = Math.min(dmax, 12);
+    return Math.pow(10, dmax);
+  }
+
+  function toScaledInt(value, scale){
+    const n = Number(String(value).replace(',', '.'));
+    if (!isFinite(n)) return NaN;
+    return Math.round(n * scale);
+  }
+
+  function fromScaledIntToString(intVal, scale){
+    const neg = intVal < 0 ? '-' : '';
+    let abs = Math.abs(intVal);
+    if (scale === 1) return (neg + String(abs));
+    const s = String(abs).padStart(Math.ceil(Math.log10(scale)), '0');
+    const d = String(scale).length - 1; // nb de décimales
+    const i = s.length - d;
+    let intPart = i > 0 ? s.slice(0, i) : '0';
+    let fracPart = i > 0 ? s.slice(i) : s.padStart(d, '0');
+    fracPart = fracPart.replace(/0+$/, '');
+    return neg + (fracPart ? intPart + '.' + fracPart : intPart);
+  }
+
+  function applyPadding(numStr, padLen){
+    if (!padLen || padLen <= 0) return numStr;
+    const neg = numStr.startsWith('-');
+    const s = neg ? numStr.slice(1) : numStr;
+    const [intPart, fracPart] = s.split('.');
+    const intPadded = intPart.padStart(padLen, '0');
+    const joined = fracPart != null ? (intPadded + '.' + fracPart) : intPadded;
+    return neg ? '-' + joined : joined;
+  }
+
+  function unescapeSeparators(s){
+    return s
+      .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
+      .replace(/\\r/g, '\r');
+  }
+
+  function updateCount(n){
+    lastCount = n || 0;
+    const t = I18N[currentLang];
+    countLabel.textContent = lastCount + ' ' + (lastCount > 1 ? t.count_many : t.count_one);
+  }
+
+  function updateParityAvailability(){
+    const dx = decimalsCount(xEl.value);
+    const dy = decimalsCount(yEl.value);
+    const ds = decimalsCount(stepEl.value);
+    const allowParity = (dx === 0 && dy === 0 && ds === 0);
+    parityEl.disabled = !allowParity;
+    if (!allowParity) parityEl.value = 'all';
+  }
+
+  function updateSepCustomState(){
+    const selected = getSelectedSep();
+    const custom = selected.key === 'custom';
+    sepCustomEl.disabled = !custom;
+    sepCustomEl.classList.toggle('hide', !custom);
+    if (custom) sepCustomEl.focus();
+  }
+
+  function getSelectedSep(){
+    const radios = form.querySelectorAll('input[name="sep"]');
+    let key = 'comma';
+    radios.forEach(r => { if (r.checked) key = r.value; });
+    let sep = ',';
+    if (key === 'comma') sep = ',';
+    else if (key === 'space') sep = ' ';
+    else if (key === 'semicolon') sep = ';';
+    else if (key === 'newline') sep = '\n';
+    else if (key === 'custom') sep = unescapeSeparators(sepCustomEl.value || '');
+    return { key, sep };
+  }
+
+  function validateInputs(){
+    const t = I18N[currentLang];
+    let ok = true;
+    xErr.textContent = '';
+    yErr.textContent = '';
+    stepErr.textContent = '';
+
+    const xv = xEl.value.trim();
+    const yv = yEl.value.trim();
+    const sv = stepEl.value.trim();
+
+    const xn = Number(xv.replace(',', '.'));
+    const yn = Number(yv.replace(',', '.'));
+    const sn = Number(sv.replace(',', '.'));
+
+    if (xv === '' || !isFinite(xn)) { xErr.textContent = t.err_x; ok = false; }
+    if (yv === '' || !isFinite(yn)) { yErr.textContent = t.err_y; ok = false; }
+    if (sv === '' || !isFinite(sn)) { stepErr.textContent = t.err_step; ok = false; }
+    if (isFinite(sn) && sn <= 0) { stepErr.textContent = t.err_step_positive; ok = false; }
+
+    xEl.setAttribute('aria-invalid', xErr.textContent ? 'true' : 'false');
+    yEl.setAttribute('aria-invalid', yErr.textContent ? 'true' : 'false');
+    stepEl.setAttribute('aria-invalid', stepErr.textContent ? 'true' : 'false');
+
+    return ok;
+  }
+
+  function estimateCount(startInt, endInt, stepInt){
+    const dist = Math.abs(endInt - startInt);
+    if (stepInt <= 0) return 0;
+    return Math.floor(dist / stepInt) + 1;
+  }
+
+  function generate(){
+    copyMsg.textContent = '';
+    if (!validateInputs()) return;
+
+    const xv = xEl.value.trim();
+    const yv = yEl.value.trim();
+    const sv = stepEl.value.trim();
+    const order = form.querySelector('input[name="order"]:checked').value; // 'asc' | 'desc'
+    const includeX = incXEl.checked;
+    const includeY = incYEl.checked;
+    const parity = parityEl.value; // all | even | odd
+    const groupN = Math.max(0, Number(groupNEl.value || 0));
+    const { sep } = getSelectedSep();
+    const prefix = prefixEl.value || '';
+    const suffix = suffixEl.value || '';
+    const padLen = Math.max(0, Number(padEl.value || 0));
+
+    const scale = commonScale([xv, yv, sv]);
+    const xInt = toScaledInt(xv, scale);
+    const yInt = toScaledInt(yv, scale);
+    const stepInt = toScaledInt(sv, scale);
+
+    let startInt, endInt, includeStart, includeEnd;
+    if (order === 'asc'){
+      if (xInt <= yInt){
+        startInt = xInt; endInt = yInt; includeStart = includeX; includeEnd = includeY;
+      }else{
+        startInt = yInt; endInt = xInt; includeStart = includeY; includeEnd = includeX;
+      }
+    }else{ // 'desc'
+      if (xInt >= yInt){
+        startInt = xInt; endInt = yInt; includeStart = includeX; includeEnd = includeY;
+      }else{
+        startInt = yInt; endInt = xInt; includeStart = includeY; includeEnd = includeX;
+      }
+    }
+
+    const approx = estimateCount(startInt, endInt, stepInt);
+    if (approx > BIG_THRESHOLD){
+      const msg = I18N[currentLang].warn_big(approx, currentLang);
+      if (!confirm(msg)) return;
+    }
+
+    const out = [];
+    let current = startInt;
+    if (!includeStart){
+      current = (order === 'asc') ? (startInt + stepInt) : (startInt - stepInt);
+    }
+
+    const forward = (order === 'asc');
+    const inBounds = (v) => forward ? (includeEnd ? v <= endInt : v < endInt)
+                                    : (includeEnd ? v >= endInt : v > endInt);
+
+    const parityActive = (parity !== 'all') && decimalsCount(xv) === 0 && decimalsCount(yv) === 0 && decimalsCount(sv) === 0;
+
+    while (inBounds(current)){
+      if (!parityActive || ((Math.abs(current) % 2 === 0) === (parity === 'even')) || ((Math.abs(current) % 2 === 1) === (parity === 'odd'))){
+        out.push(current);
+      }
+      current = forward ? (current + stepInt) : (current - stepInt);
+      if (out.length > 5_000_000){ alert(I18N[currentLang].safety_stop); break; }
+    }
+
+    const mapped = out.map(v => {
+      let s = fromScaledIntToString(v, scale);
+      if (padLen > 0) s = applyPadding(s, padLen);
+      return prefix + s + suffix;
+    });
+
+    let finalText = '';
+    const sepToUse = sep;
+    if (groupN > 0){
+      const lines = [];
+      for (let i=0;i<mapped.length;i+=groupN){
+        lines.push(mapped.slice(i, i+groupN).join(sepToUse));
+      }
+      finalText = lines.join('\n');
+    }else{
+      finalText = mapped.join(sepToUse);
+    }
+
+    resultEl.value = finalText;
+    const count = mapped.length;
+    updateCount(count);
+    btnCopy.disabled = (count === 0 || finalText.length === 0);
+    resultEl.focus();
+  }
+
+  async function copyResult(){
+    copyMsg.textContent = '';
+    const text = resultEl.value || '';
+    if (!text) return;
+
+    const fallback = () => {
+      try{
+        resultEl.focus();
+        resultEl.select();
+        document.execCommand('copy');
+        copyMsg.textContent = I18N[currentLang].copied_ok;
+      }catch(e){
+        copyMsg.textContent = I18N[currentLang].copy_fail;
+      }
+    };
+
+    try{
+      if (navigator.clipboard && window.isSecureContext){
+        await navigator.clipboard.writeText(text);
+        copyMsg.textContent = I18N[currentLang].copied_ok;
+      }else{
+        fallback();
+      }
+    }catch(e){
+      fallback();
+    }
+    setTimeout(()=>{ copyMsg.textContent = ''; }, 2500);
+  }
+
+  function resetAll(){
+    form.reset();
+    xEl.value = '';
+    yEl.value = '';
+    stepEl.value = '';
+    groupNEl.value = '';
+    sepCustomEl.value = '';
+    prefixEl.value = '';
+    suffixEl.value = '';
+    padEl.value = '';
+
+    const sepRadios = form.querySelectorAll('input[name="sep"]');
+    sepRadios.forEach(r => r.checked = (r.value === 'comma'));
+
+    xErr.textContent = yErr.textContent = stepErr.textContent = '';
+    resultEl.value = '';
+    updateCount(0);
+    btnCopy.disabled = true;
+    copyMsg.textContent = '';
+
+    updateParityAvailability();
+    updateSepCustomState();
+    xEl.focus();
+  }
+
+  /* ------------------------------------------------------------------------
+     Écouteurs et ergonomie
+     ------------------------------------------------------------------------ */
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    generate();
+  });
+
+  form.addEventListener('keydown', function(e){
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      generate();
+    }
+  });
+
+  btnReset.addEventListener('click', resetAll);
+  btnCopy.addEventListener('click', copyResult);
+
+  form.querySelectorAll('input[name="sep"]').forEach(r => {
+    r.addEventListener('change', updateSepCustomState);
+  });
+
+  [xEl, yEl, stepEl].forEach(el => {
+    el.addEventListener('input', updateParityAvailability);
+  });
+
+  // Liens ARIA
+  xEl.setAttribute('aria-describedby', 'xErr');
+  yEl.setAttribute('aria-describedby', 'yErr');
+  stepEl.setAttribute('aria-describedby', 'stepErr');
+
+  // Sélecteur de langue (préférence utilisateur)
+  langSelect.addEventListener('change', function(){
+    prefLang = this.value || 'auto';
+    localStorage.setItem('prefLang', prefLang);
+    currentLang = resolveLang(prefLang);
+    applyI18N();
+  });
+
+  // Valeurs de démonstration
+  xEl.value = '1';
+  yEl.value = '10';
+  stepEl.value = '1';
+
+  // Appliquer la langue au chargement
+  // Positionner le sélecteur selon préférence
+  langSelect.value = prefLang;
+  applyI18N();
+
+  updateParityAvailability();
+  updateSepCustomState();
+  updateCount(0);
+
+})();
+</script>
+</body>
+</html>
